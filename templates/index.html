@@ -23,13 +23,13 @@
 /* Institutional header and project credits */
 .institution-header {
     text-align: center;
-    padding: 24px 20px 18px;
-    border-bottom: 2px solid #1f5d2b;
-    margin-bottom: 26px;
+    padding: 14px 16px 10px;
+    border-bottom: none;
+    margin-bottom: 14px;
 }
 
 .institution-name {
-    font-size: clamp(28px, 4vw, 46px);
+    font-size: clamp(24px, 3.2vw, 37px);
     font-weight: 700;
     line-height: 1.2;
     color: #1f5d2b;
@@ -37,22 +37,80 @@
 }
 
 .institution-address {
-    font-size: clamp(18px, 2.2vw, 26px);
+    font-size: clamp(16px, 1.9vw, 22px);
     line-height: 1.4;
     color: #222;
 }
 
 .institution-credits {
-    border-top: 1px solid #222;
-    margin: 22px 3% 0;
-    padding: 18px 10px 4px;
+    border-top: none;
+    margin: 12px 3% 0;
+    padding: 10px 10px 2px;
     text-align: center;
     font-size: inherit;
-    line-height: 1.8;
+    line-height: 1.45;
     color: inherit;
 }
 
+
+/* Compact layout: keep the complete home page visible on typical laptop screens. */
+.institution-header {
+    margin-bottom: 12px;
+}
+.institution-name {
+    letter-spacing: 0;
+    margin-bottom: 4px;
+}
+.institution-address {
+    margin-bottom: 0;
+}
+.institution-credits {
+    margin-top: 10px;
+    padding-top: 8px;
+    padding-bottom: 2px;
+}
+
+
+/* Final compact typography refinement */
+.institution-header {
+    padding-top: 11px;
+    padding-bottom: 7px;
+    margin-bottom: 8px;
+}
+.institution-name {
+    margin-bottom: 2px;
+}
+.institution-address {
+    line-height: 1.15;
+}
+.main-title, h1 {
+    line-height: 1.15;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+.subtitle, .description {
+    line-height: 1.2;
+    margin-top: 3px;
+    margin-bottom: 7px;
+}
+.card {
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
 </style>
+
+<style>
+.institution-credits > div {
+    white-space: nowrap;
+}
+@media (max-width: 700px) {
+    .institution-credits > div {
+        white-space: normal;
+    }
+}
+</style>
+
 </head>
 <body>
 
@@ -139,8 +197,7 @@ loadTalukas();
 </script>
 
 <div class="institution-credits">
-    <div>मूळ संकल्पना व प्रेरणा : प्रो. माधव गाडगीळ</div>
-    <div>संगणीकरण : डॉ. विजय एदलाबादकर</div>
+    <div>मूळ संकल्पना व प्रेरणा : प्रो. माधव गाडगीळ&nbsp;&nbsp; | &nbsp;&nbsp;संगणीकरण : डॉ. विजय एदलाबादकर</div>
 </div>
 
 </body>
