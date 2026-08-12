@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="mr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>महाराष्ट्रातील गावांची Census 2011 माहिती</title>
+  <style>
+    body{font-family:Arial,"Noto Sans Devanagari",sans-serif;background:#f4f6f8;margin:0;color:#222}
+    .wrap{max-width:1050px;margin:30px auto;padding:0 18px}
+    .card{background:white;border-radius:12px;padding:24px;box-shadow:0 2px 12px #00000012;margin-bottom:20px}
+    h1{margin-top:0;font-size:28px}.sub{color:#666;line-height:1.6}
+    nav{margin-bottom:16px} nav a{color:#1769aa;text-decoration:none;margin-right:18px}
+    label{display:block;font-weight:600;margin:16px 0 7px}
+    select,button,textarea{font:inherit}
+    select{width:100%;padding:11px;border:1px solid #bbb;border-radius:7px;background:white}
+    button{padding:10px 17px;border:0;border-radius:7px;cursor:pointer;margin-top:18px}
+    .primary{background:#1769aa;color:#fff}.download{background:#555;color:#fff}.copy{background:#2f7d32;color:#fff;margin-left:8px}
+    textarea{width:100%;box-sizing:border-box;min-height:620px;padding:14px;border:1px solid #bbb;border-radius:7px;line-height:1.55}
+    .error{background:#fff0f0;color:#a00;padding:12px;border-radius:7px;margin-top:15px}
+    .note{font-size:14px;color:#666;margin-top:15px;line-height:1.6}
+    .badge{display:inline-block;background:#eef5fb;padding:5px 9px;border-radius:6px;font-size:13px;margin-top:10px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <nav><a href="/">मुख्य पृष्ठ</a><a href="/about">या प्रकल्पाबद्दल / स्रोत</a></nav>
+  <div class="card">
+    <h1>महाराष्ट्रातील गावांची Census 2011 माहिती</h1>
+    <div class="sub">Census of India 2011 च्या उपलब्ध आकडेवारीवर आधारित मराठी Wikipedia लेख तयार करा.</div>
+    <div class="badge">मूळ आकडेवारी: Census 2011</div>
+
+    <form method="post" action="/generate">
+      <label for="district">जिल्हा</label>
+      <select id="district" name="district" required>
+        <option value="">-- जिल्हा निवडा --</option>
+        {% for d in districts %}
+          <option value="{{ d.value }}" {% if d.value == selected_district|default('') %}selected{% endif %}>{{ d.label }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="taluka">तालुका</label>
+      <select id="taluka" name="taluka" required><option value="">-- तालुका निवडा --</option></select>
+
+      <label for="village">गाव</label>
+      <select id="village" name="village" required><option value="">-- गाव निवडा --</option></select>
+
+      <button class="primary" type="submit">Wikipedia लेख तयार करा</button>
+    </form>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <div class="note">टीप: गाव/तालुका/जिल्ह्याची मराठी नावे उपलब्ध अनुवाद यादीतून घेतली जातात; अनुवाद उपलब्ध नसल्यास Census मधील नाव ठेवले जाते.</div>
+  </div>
+
+  {% if article %}
+  <div class="card">
+    <h2>{{ selected_village_label }} — तयार झालेला Wikipedia लेख</h2>
+    <div class="note">{{ selected_district_label }} → {{ selected_taluka_label }} → {{ selected_village_label }}</div>
+    <form method="post" action="/download">
+      <textarea id="article" name="article" readonly>{{ article }}</textarea>
+      <button class="download" type="submit">TXT फाइल डाउनलोड करा</button>
+      <button class="copy" type="button" onclick="copyArticle()">लेख कॉपी करा</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+<script>
+const district = document.getElementById('district');
+const taluka = document.getElementById('taluka');
+const village = document.getElementById('village');
+let selectedTaluka = {{ selected_taluka|default('')|tojson }};
+let selectedVillage = {{ selected_village|default('')|tojson }};
+
+function fill(select, items, placeholder, selected='') {
+  select.innerHTML = '';
+  const first = document.createElement('option'); first.value=''; first.textContent=placeholder; select.appendChild(first);
+  items.forEach(x => {
+    const o=document.createElement('option'); o.value=x.value; o.textContent=x.label;
+    if(x.value===selected)o.selected=true; select.appendChild(o);
+  });
+}
+async function loadTalukas() {
+  if(!district.value){ fill(taluka,[], '-- तालुका निवडा --'); fill(village,[], '-- गाव निवडा --'); return; }
+  const r=await fetch('/api/talukas?district='+encodeURIComponent(district.value));
+  fill(taluka,await r.json(),'-- तालुका निवडा --',selectedTaluka);
+  if(taluka.value) await loadVillages();
+}
+async function loadVillages() {
+  if(!district.value || !taluka.value){ fill(village,[], '-- गाव निवडा --'); return; }
+  const r=await fetch('/api/villages?district='+encodeURIComponent(district.value)+'&taluka='+encodeURIComponent(taluka.value));
+  fill(village,await r.json(),'-- गाव निवडा --',selectedVillage);
+}
+async function copyArticle(){
+  const box=document.getElementById('article');
+  await navigator.clipboard.writeText(box.value);
+  alert('Wikipedia लेख कॉपी झाला आहे.');
+}
+district.addEventListener('change',()=>{ selectedTaluka=''; selectedVillage=''; loadTalukas(); });
+taluka.addEventListener('change',()=>{ selectedVillage=''; loadVillages(); });
+loadTalukas();
+</script>
+</body>
+</html>

@@ -1,5 +1,11 @@
 __pycache__/
-*.pyc
-wikipage_text.txt
+*.py[cod]
+*.pyo
+*.log
+census_data/temp_E_text.txt
+census_data/mah_vill_census_data.csv
+.DS_Store
+Thumbs.db
 .env
 .venv/
+venv/

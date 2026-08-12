@@ -4,17 +4,18 @@ import importlib.util
 import pickle
 import codecs
 import sys
+import sqlite3
 from decimal import Decimal
 from collections import Counter
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE / "census_data"
-CSV_FILE = DATA_DIR / "mah_vill_census_data.csv"
+DB_FILE = DATA_DIR / "census.db"
 
 app = Flask(__name__)
 
-# Import the user's existing article-generation program without running its CLI.
+# Import the existing article-generation program without running its CLI.
 spec = importlib.util.spec_from_file_location("census_wiki", BASE / "Census_Wiki_Vill.py")
 cw = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cw)
@@ -24,13 +25,22 @@ cw.codecs = codecs
 cw.Decimal = Decimal
 cw.sys = sys
 
-print("Loading Census India data...")
-df = pd.read_csv(CSV_FILE, low_memory=False)
-print(f"Loaded {len(df):,} village records.")
+if not DB_FILE.exists():
+    raise FileNotFoundError(f"Census database not found: {DB_FILE}")
+
+
+def db_query(sql, params=(), *, dataframe=False):
+    """Run a small read-only SQLite query and close the connection."""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        if dataframe:
+            return pd.read_sql_query(sql, conn, params=params)
+        return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
 
 # Standard Marathi names for Maharashtra's Census-2011 district names.
-# These are used for the public-facing interface and as a reliable fallback
-# when a district name is not present in a district's village translation file.
 DISTRICT_MARATHI = {
     "Ahmadnagar": "अहमदनगर", "Akola": "अकोला", "Amravati": "अमरावती",
     "Aurangabad": "औरंगाबाद", "Beed": "बीड", "Bhandara": "भंडारा",
@@ -44,13 +54,12 @@ DISTRICT_MARATHI = {
     "Sangli": "सांगली", "Satara": "सातारा", "Sindhudurg": "सिंधुदुर्ग",
     "Solapur": "सोलापूर", "Thane": "ठाणे", "Wardha": "वर्धा",
     "Washim": "वाशिम", "Yavatmal": "यवतमाळ",
+    "गडचिरोली": "गडचिरोली", "चंद्रपूर ": "चंद्रपूर",
 }
 
-DISTRICTS = sorted(df["District Name"].dropna().astype(str).unique().tolist())
+DISTRICTS = [r[0] for r in db_query('SELECT DISTINCT "District Name" FROM villages WHERE "District Name" IS NOT NULL ORDER BY "District Name"')]
 EM_CACHE = {}
 DISTRICT_TRANSLATION_CACHE = {}
-TALUKA_TRANSLATION_CACHE = {}
-VILLAGE_TRANSLATION_CACHE = {}
 
 
 def normalize_text(value):
@@ -60,7 +69,7 @@ def normalize_text(value):
 
 
 def load_em_list(dist_code):
-    key = str(int(dist_code)) if str(dist_code).replace('.', '', 1).isdigit() else str(dist_code)
+    key = str(int(float(dist_code))) if str(dist_code).replace('.', '', 1).isdigit() else str(dist_code)
     if key not in EM_CACHE:
         path = DATA_DIR / f"e_m_list_{key}.pkl"
         try:
@@ -73,7 +82,7 @@ def load_em_list(dist_code):
 
 def build_translation_maps(dist_code):
     """Build best-effort English->Marathi maps from the district's pkl file."""
-    key = str(int(dist_code)) if str(dist_code).replace('.', '', 1).isdigit() else str(dist_code)
+    key = str(int(float(dist_code))) if str(dist_code).replace('.', '', 1).isdigit() else str(dist_code)
     if key in DISTRICT_TRANSLATION_CACHE:
         return DISTRICT_TRANSLATION_CACHE[key]
 
@@ -101,47 +110,82 @@ def translate_name(name, dist_code):
 
 
 def get_district_code(district):
-    rows = df.loc[df["District Name"].astype(str).eq(district), "District Code"]
-    if rows.empty:
-        return None
-    return rows.iloc[0]
+    rows = db_query('SELECT "District Code" FROM villages WHERE "District Name" = ? LIMIT 1', (district,))
+    return rows[0][0] if rows else None
 
 
 def get_talukas(district):
-    x = df.loc[df["District Name"].astype(str) == district, "Sub District Name"]
-    return sorted(x.dropna().astype(str).unique().tolist())
+    rows = db_query(
+        'SELECT DISTINCT "Sub District Name" FROM villages '
+        'WHERE "District Name" = ? AND "Sub District Name" IS NOT NULL '
+        'ORDER BY "Sub District Name"',
+        (district,),
+    )
+    return [r[0] for r in rows]
 
 
 def get_villages(district, taluka):
-    mask = (df["District Name"].astype(str) == district) & (df["Sub District Name"].astype(str) == taluka)
-    x = df.loc[mask, "Village Name"]
-    return sorted(x.dropna().astype(str).unique().tolist())
+    rows = db_query(
+        'SELECT DISTINCT "Village Name" FROM villages '
+        'WHERE "District Name" = ? AND "Sub District Name" = ? AND "Village Name" IS NOT NULL '
+        'ORDER BY "Village Name"',
+        (district, taluka),
+    )
+    return [r[0] for r in rows]
 
 
 def get_display_talukas(district):
     code = get_district_code(district)
-    rows = []
-    for name in get_talukas(district):
-        rows.append({"value": name, "label": translate_name(name, code) if code is not None else name})
-    return rows
+    return [
+        {"value": name, "label": translate_name(name, code) if code is not None else name}
+        for name in get_talukas(district)
+    ]
+
+
+def translate_names(names, dist_code):
+    """Translate only the names currently needed for a dropdown."""
+    names = [normalize_text(n) for n in names if normalize_text(n)]
+    if not names or dist_code is None:
+        return {n: n for n in names}
+
+    wanted = set(names)
+    mapping = {}
+    for row in load_em_list(dist_code):
+        if len(row) < 4:
+            continue
+        en = normalize_text(row[2])
+        mr = normalize_text(row[3])
+        if en in wanted and mr:
+            mapping[en] = mr
+        elif en.upper() in wanted and mr:
+            mapping[en.upper()] = mr
+
+    # Standard district names are always available.
+    for n in names:
+        mapping.setdefault(n, DISTRICT_MARATHI.get(n, n))
+    return mapping
 
 
 def get_display_villages(district, taluka):
+    """Return villages without constructing the full district translation map."""
+    names = get_villages(district, taluka)
     code = get_district_code(district)
-    rows = []
-    mapping = build_translation_maps(code) if code is not None else {}
-    for name in get_villages(district, taluka):
-        rows.append({"value": name, "label": mapping.get(name, name)})
-    return rows
+    mapping = translate_names(names, code)
+    return [{"value": name, "label": mapping.get(name, name)} for name in names]
+
+
+def get_village_dataframe(village, taluka, district):
+    selected = db_query(
+        'SELECT * FROM villages WHERE "Village Name" = ? AND "Sub District Name" = ? '
+        'AND "District Name" = ? LIMIT 1',
+        (village, taluka, district),
+        dataframe=True,
+    )
+    return selected
 
 
 def generate_article(village, taluka, district):
-    mask = (
-        df["Village Name"].astype(str).eq(village)
-        & df["Sub District Name"].astype(str).eq(taluka)
-        & df["District Name"].astype(str).eq(district)
-    )
-    selected = df.loc[mask].copy()
+    selected = get_village_dataframe(village, taluka, district)
     if selected.empty:
         raise ValueError("The selected village was not found in the Census data.")
 
@@ -149,28 +193,29 @@ def generate_article(village, taluka, district):
     cw.i = 0
     dist_code = selected.iloc[0, 2]
 
-    # Keep the original program's replacement behavior so its article remains
-    # compatible with the user's existing Marathi Wikipedia formatting.
+    # Apply the district-specific English->Marathi replacement logic in one
+    # DataFrame operation instead of repeatedly scanning all 397 columns.
+    replacement_map = {}
     for x in load_em_list(dist_code):
         if len(x) >= 4:
             e_text, m_text = x[2], x[3]
             if pd.notna(e_text) and pd.notna(m_text):
-                cw.df.replace(e_text, m_text, inplace=True)
-                cw.df.replace(str(e_text).upper(), m_text, inplace=True)
+                e_text = str(e_text)
+                replacement_map[e_text] = m_text
+                replacement_map[e_text.upper()] = m_text
+    if replacement_map:
+        cw.df.replace(replacement_map, inplace=True)
 
     if cw.df.iat[0, 25] == 0:
         raise ValueError("Population data are not available for this village; an article cannot be generated.")
 
     article = cw.main()
 
-    # Guarantee consistent public-facing names for the selected district,
-    # taluka and village even when a name was absent from the translation list.
     mr_district = DISTRICT_MARATHI.get(district, district)
     mr_taluka = translate_name(taluka, dist_code)
     mr_village = build_translation_maps(dist_code).get(village, village)
 
-    replacements = [(district, mr_district), (taluka, mr_taluka), (village, mr_village)]
-    for en, mr in replacements:
+    for en, mr in [(district, mr_district), (taluka, mr_taluka), (village, mr_village)]:
         if en and mr and en != mr:
             article = article.replace(en, mr)
 
@@ -210,8 +255,9 @@ def generate():
             raise ValueError("कृपया जिल्हा, तालुका आणि गाव निवडा.")
         article = generate_article(village, taluka, district)
         district_label = DISTRICT_MARATHI.get(district, district)
-        taluka_label = translate_name(taluka, get_district_code(district))
-        village_label = build_translation_maps(get_district_code(district)).get(village, village)
+        code = get_district_code(district)
+        taluka_label = translate_name(taluka, code)
+        village_label = build_translation_maps(code).get(village, village)
         return render_template(
             "index.html",
             districts=[{"value": d, "label": DISTRICT_MARATHI.get(d, d)} for d in DISTRICTS],

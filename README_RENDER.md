@@ -1,43 +1,64 @@
-# Maharashtra Census Wiki – Render Deployment
+# Render Deployment — Maharashtra Census Wiki
 
-This package converts the original command-line Census_Wiki_Vill.py application into a Flask web application.
+## Purpose
 
-## Local test
+This version is optimized for Render's limited-memory environment.
 
-```bash
-pip install -r requirements.txt
-python app.py
+The previous version could load the complete Maharashtra Census CSV into Pandas at application startup. That could consume enough memory for Render to terminate the process with **Exit status 137**.
+
+This version uses:
+
+```text
+SQLite database → query required village → Pandas DataFrame for that village only
 ```
 
-Open `http://127.0.0.1:5000/`.
+## Render settings
 
-## Render
-
-Create a **Web Service** from the GitHub repository.
-
-Build command:
+### Build Command
 
 ```text
 pip install -r requirements.txt
 ```
 
-Start command:
+### Start Command
 
 ```text
 gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
 ```
 
-Use the Free instance if available.
+The `render.yaml` file contains the deployment configuration.
 
-## Project structure
+## Database
 
-- `app.py` – Flask web application
-- `Census_Wiki_Vill.py` – original article-generation logic
-- `templates/index.html` – Marathi user interface
-- `templates/about.html` – source/disclaimer page
-- `census_data/mah_vill_census_data.csv` – Census 2011 data
-- `census_data/e_m_list_*.pkl` – district-wise English-to-Marathi mappings
+The deployed application uses:
 
-## Notes
+```text
+census_data/census.db
+```
 
-The public UI displays Marathi district/taluka/village names where mappings are available and falls back to Census spellings where they are not. The selected place names are also normalized in the generated article. The underlying Census figures are not changed.
+The application should not load the complete `mah_vill_census_data.csv` into memory during normal web requests.
+
+## Before pushing to GitHub
+
+Make sure `census.db` is included in the repository. The large CSV should not be committed as an ordinary Git blob.
+
+If Git LFS is used for the source CSV in your development copy, that is separate from the SQLite database required by the deployed application.
+
+## Troubleshooting Exit status 137
+
+If Render again reports:
+
+```text
+Exited with status 137
+```
+
+check the application logs for any code that reads the entire CSV with `pandas.read_csv()` at startup. The deployed application should use the SQLite database instead.
+
+## Deployment sequence
+
+1. Replace the old application files with this corrected version.
+2. Confirm `census_data/census.db` exists.
+3. Commit and push the changes to GitHub.
+4. In Render, deploy the latest commit.
+5. Check the deployment logs.
+6. Test the village search and article generation.
