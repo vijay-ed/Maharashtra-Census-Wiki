@@ -19,9 +19,48 @@
     .error{background:#fff0f0;color:#a00;padding:12px;border-radius:7px;margin-top:15px}
     .note{font-size:14px;color:#666;margin-top:15px;line-height:1.6}
     .badge{display:inline-block;background:#eef5fb;padding:5px 9px;border-radius:6px;font-size:13px;margin-top:10px}
-  </style>
+  
+/* Institutional header and project credits */
+.institution-header {
+    text-align: center;
+    padding: 24px 20px 18px;
+    border-bottom: 2px solid #1f5d2b;
+    margin-bottom: 26px;
+}
+
+.institution-name {
+    font-size: clamp(28px, 4vw, 46px);
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1f5d2b;
+    margin-bottom: 8px;
+}
+
+.institution-address {
+    font-size: clamp(18px, 2.2vw, 26px);
+    line-height: 1.4;
+    color: #222;
+}
+
+.institution-credits {
+    border-top: 1px solid #222;
+    margin: 22px 3% 0;
+    padding: 18px 10px 4px;
+    text-align: center;
+    font-size: inherit;
+    line-height: 1.8;
+    color: inherit;
+}
+
+</style>
 </head>
 <body>
+
+<header class="institution-header">
+    <div class="institution-name">माधव रिसर्च अँड डेव्हलपमेंट फाऊंडेशन</div>
+    <div class="institution-address">खरकाडी , ता. धानोरा, जि. गडचिरोली (महाराष्ट्र).</div>
+</header>
+
 <div class="wrap">
   <nav><a href="/">मुख्य पृष्ठ</a><a href="/about">या प्रकल्पाबद्दल / स्रोत</a></nav>
   <div class="card">
@@ -98,5 +137,11 @@ district.addEventListener('change',()=>{ selectedTaluka=''; selectedVillage=''; 
 taluka.addEventListener('change',()=>{ selectedVillage=''; loadVillages(); });
 loadTalukas();
 </script>
+
+<div class="institution-credits">
+    <div>मूळ संकल्पना व प्रेरणा : प्रो. माधव गाडगीळ</div>
+    <div>संगणीकरण : डॉ. विजय एदलाबादकर</div>
+</div>
+
 </body>
 </html>
