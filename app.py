@@ -57,7 +57,7 @@ DISTRICT_MARATHI = {
     "गडचिरोली": "गडचिरोली", "चंद्रपूर ": "चंद्रपूर",
 }
 
-DISTRICTS = [r[0] for r in db_query('SELECT DISTINCT "District Name" FROM villages WHERE "District Name" IS NOT NULL ORDER BY "District Name"')]
+DISTRICTS = [r[0] for r in db_query("SELECT DISTINCT TRIM(\"District Name\") FROM villages WHERE \"District Name\" IS NOT NULL AND TRIM(\"District Name\") <> '' ORDER BY TRIM(\"District Name\")")]
 EM_CACHE = {}
 DISTRICT_TRANSLATION_CACHE = {}
 
@@ -110,15 +110,16 @@ def translate_name(name, dist_code):
 
 
 def get_district_code(district):
-    rows = db_query('SELECT "District Code" FROM villages WHERE "District Name" = ? LIMIT 1', (district,))
+    rows = db_query('SELECT "District Code" FROM villages WHERE TRIM("District Name") = TRIM(?) LIMIT 1', (district,))
     return rows[0][0] if rows else None
 
 
 def get_talukas(district):
     rows = db_query(
-        'SELECT DISTINCT "Sub District Name" FROM villages '
-        'WHERE "District Name" = ? AND "Sub District Name" IS NOT NULL '
-        'ORDER BY "Sub District Name"',
+        'SELECT DISTINCT TRIM("Sub District Name") FROM villages '
+        'WHERE TRIM("District Name") = TRIM(?) AND "Sub District Name" IS NOT NULL '
+        "AND TRIM(\"Sub District Name\") <> '' "
+        'ORDER BY TRIM("Sub District Name")',
         (district,),
     )
     return [r[0] for r in rows]
@@ -126,9 +127,10 @@ def get_talukas(district):
 
 def get_villages(district, taluka):
     rows = db_query(
-        'SELECT DISTINCT "Village Name" FROM villages '
-        'WHERE "District Name" = ? AND "Sub District Name" = ? AND "Village Name" IS NOT NULL '
-        'ORDER BY "Village Name"',
+        'SELECT DISTINCT TRIM("Village Name") FROM villages '
+        'WHERE TRIM("District Name") = TRIM(?) AND TRIM("Sub District Name") = TRIM(?) '
+        "AND \"Village Name\" IS NOT NULL AND TRIM(\"Village Name\") <> '' "
+        'ORDER BY TRIM("Village Name")',
         (district, taluka),
     )
     return [r[0] for r in rows]
@@ -176,8 +178,8 @@ def get_display_villages(district, taluka):
 
 def get_village_dataframe(village, taluka, district):
     selected = db_query(
-        'SELECT * FROM villages WHERE "Village Name" = ? AND "Sub District Name" = ? '
-        'AND "District Name" = ? LIMIT 1',
+        'SELECT * FROM villages WHERE TRIM("Village Name") = TRIM(?) AND TRIM("Sub District Name") = TRIM(?) '
+        'AND TRIM("District Name") = TRIM(?) LIMIT 1',
         (village, taluka, district),
         dataframe=True,
     )
